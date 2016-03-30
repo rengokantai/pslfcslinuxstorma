@@ -50,3 +50,82 @@ parted -s $DISK print
 83 linux-82swap-8e lvm-fd raid  
 GPT label:
 8300 linux-8200 swap
+
+#####creating linux file system
+######ext4
+```
+mkfs.  tab   //show all file system
+```
+
+```
+mkfs -t /dev/xvda
+mkfs -t -L data /dev/xvda //assign label
+```
+tune: -c :count -i interval
+```
+tune2fs -L newlabel -c 0 -i 0 /dev/xvda
+```
+show info
+```
+dumpe2fs /dev/xvda
+```
+
+######xfs
+```
+mkfs.xfx -b size=1k -l (log)  size=10m /dev/xvda
+```
+see all com:
+```
+xfs_ tab
+```
+check info
+```
+xfs_db -x /dev/xvda
+uuid //get
+label//get
+```
+
+set label:
+```
+label labelname
+```
+mount ext4
+```
+mount /dev/xvda /mnt
+ls /mnt
+umount /mnt
+mount | grep xvda
+```
+
+```
+mount -o remount,noexec /dev/xvda /data
+```
+
+
+load all mount
+```
+cat /proc/mounts
+```
+showid
+```
+blkid /dev/xvda
+```
+change
+```
+vim /etc/fstab
+```
+edit
+```
+UUID=" " /data ext4 noexec 0 2     //2 filecheck   noexec/defaults
+```
+
+then reload and mount
+```
+mount -a
+```
+
+
+
+
+
+
