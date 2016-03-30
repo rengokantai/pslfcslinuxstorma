@@ -123,8 +123,39 @@ then reload and mount
 ```
 mount -a
 ```
+#####managing SWAP
 
+######
+```
+mkswap /dev/xvda
+swapon -s
+swapon /dev/sdb5 (low priority)
+```
 
+turn off
+```
+swapoff /dev/sdb5
+```
+
+check by using```free -m```
+
+###config priority
+```
+swapoff -a //turn off all
+```
+
+in vim console,type
+```
+!rblkid /dev/xvda
+```
+edit fstab
+```
+UUID="" swap swap sw,pri=5 0 0
+```
+######raid
+```
+cat /proc/mdstat
+```
 
 
 
