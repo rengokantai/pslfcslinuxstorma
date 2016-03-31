@@ -156,7 +156,54 @@ UUID="" swap swap sw,pri=5 0 0
 ```
 cat /proc/mdstat
 ```
+using mdadm  (multi device adminis)
+```
+yum install mdadm
+mdadm --create --verbose /dev/md0 --level=mirror --raid-device=2 /dev/db12 /dev/db13
+mdadm --detail --scan
+mdadm --stop /dev/md0
+```
 
+#####extending permission with ACL
+```
+grep ACL /boot/config tab
+```
+y means from system, m means module
 
+#listing acls
+```
+ls -A do not list . .. 
+```
+```
+ls -l (last . show acl support)
+```
+get acl info
+```
+getfacl filename
+```
 
+######set default acls
+```
+setfacl -m d:o:--- test-acl/        //others cannot do anything  (u,g,o)
+```
+set to peculiar user
+```
+setfacl -dm u:bob:rw test-acl/      //user bob can rw
+```
+#remove acls
+```
+setfacl -b filaname
+```
+remove entry
+```
+setfacl -x u:bob filaname
+```
+######security issue
+```
+chage -l username
+```
 
+change selinux context
+```
+chcon -t admin_home_t /etc/shadow
+```
