@@ -516,3 +516,57 @@ touch /mnt/file1
 ```
 ls /gfs/rep
 ```
+#####encrypted volume
+######shredding disk
+```
+vgs
+lvcreate -L 100m -n name vg1 
+shred -v --iterations=1 /dev/vg1/name
+```
+
+######encrypting (LUKS support is by way of the dm_crypt kernel module)
+```
+grep -i DM_CRYPT /boot-config tab
+lsmod | grep dm_crypt
+modprobe dm_crypt
+yum install cryptsetup
+rpm -qf $(which cryptsetup)
+cryptsetup -y luksFormat /dev/vg1/name
+cryptsetup luksDump /dev/vg1/name
+cryptsetup isLuks /dev/vg1/name
+echo $? 0=t 1=f
+```
+
+
+######opening encrypted and formatting
+```
+cryptsetup luksOpen /dev/vg1/name name_vol
+ls /dev/mapper
+mkfs.xfs /dev/mapper/name_vol
+```
+######mounting at boot
+```
+cryptsetup luksClose name_vol
+cryptsetup luksOpen /dev/vg1/name name_vol
+\ls   //not alias
+```
+```
+vi /etc/crypttab
+```
+edit
+```
+luks-data UUID="" 
+```
+```
+vi /etc/fstab
+```
+edit
+```
+/dev/mapper/luks-data /luks-data xfs defaults 0 0
+```
+```
+mkdir /luks-data
+(ctrl r to search previous commands)
+cryptsetup luksOpen /dev/vg1/name luks_data
+mount -a
+```
