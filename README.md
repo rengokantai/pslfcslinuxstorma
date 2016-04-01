@@ -389,3 +389,130 @@ pcs property set no-quorum-policy=ignore
 pcs status
 less /etc/corosync/corosync.conf
 ```
+######clustering ip
+machine1
+```
+pcs config
+pcs resource create cluster_ip ocf:heartbeat:IPaddr2 ip=192.168.56.1 cidr_netmask=24 op monitor interval=20s
+pcs statuse
+ip a s
+```
+machine2
+```
+pcs cluster standby server1.ex.com
+```
+
+######install apache
+both machine
+```
+firewall-cmd --permanent --add-service=http
+firewall-cmd --reload
+```
+
+```
+vi /etc/httpd/conf/httpd.conf
+```
+edit
+```
+DocumentRoot "/var/www/html"
+```
+Add plugin conf:
+```
+vi /etc/httpd/conf.d/status.conf
+```
+edit
+```
+<Location /server-status>
+SetHandler server-status
+Require ip 127.0.0.1
+</Location>
+```
+
+######clustering apache
+machine1
+```
+pcs resource create web-server ocf:heartbeat:apache configfile=/etc/httpd/conf/httpd.conf statusurl="http://127.0.0.1/server-status" op monitor interval=20s
+pcs constraint colocation add web-server cluster_ip INFINITY6
+w3m 192.168.56.1
+```
+machine2
+```
+pcs cluster standby server1.ex.com  //traffic will go server2
+pcs cluster unstandby server1.ex.com    //back to server1
+```
+#####glusterfs
+do on both machine:
+```
+parted /dev/sdd -- mklabel name mkpart primary 1m -1m
+mkfs.xfs /dev/sdd1
+mkdir /gfs
+vi /etc/fstab
+```
+edit
+```
+UUID= .... /gfs xfs defaults 0 0 
+```
+######install glusterfs and firewall
+```
+yum install epel-release
+cd /etc/yum.repos.d/
+yum install wget
+wget http://download.gluster.org/pub/gluster/glustergs/latest/rhel
+scp gluter.repo x@servers:/tmp/
+ls /usr/lib/firewalld/services
+```
+enable machine1
+```
+yum install glusterfs-server glusterfs glusterfs-fuse
+```
+machine2
+```
+yum install glusterfs-server
+```
+enable on both machine
+```
+firewall-cmd --permanent --add-service=glusterfs (--reload)
+systemctl start glusterd.service
+```
+#####implementing dist volume
+both machine
+```
+mkdir /gfs/vol
+```
+machine1
+```
+gluster peer probe server2.exp.com
+```
+machine2
+```
+gluster peer status
+```
+machine1
+```
+gluster volume create volume_dist transport tcp server1.ex.com:/gfs/vol server2.ex.com:/gfs/vol 
+gluster volume start volume_dist
+gluster volume info
+mount -t glssterfs server1.ex.com:/volume_dist /mnt
+touch /mnt/{1..100}  //each server will get 50 files
+```
+
+######create replicated volume
+1
+```
+umount /mnt
+```
+1 and 2
+```
+mkdir /gfs/rep
+```
+1
+```
+gluster volume create volume_replicated replica 2 server1.ex.com:/gfs/rep server2.ex.com:/gfs/rep
+gluster volume start volume_replicated
+mount -t glssterfs server1.ex.com:/volume_replicated /mnt
+touch /mnt/file1
+```
+1,2
+```
+ls /gfs/rep
+```
