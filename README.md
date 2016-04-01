@@ -205,5 +205,97 @@ chage -l username
 
 change selinux context
 ```
-chcon -t admin_home_t /etc/shadow
+chcon -t admin_home_t /etc/shadow  //enhance security
 ```
+then
+```
+chage -l username  //permission denied
+```
+```
+ls -Z /etc/shadow
+```
+check recent
+```
+ausearch -m AVC -ts recent
+```
+restore /etc/shadow
+```
+restorecon /etc/shadow
+```
+test apache syntax
+```
+apachectl configtest
+```
+semanage
+```
+semanage fcontext -a -t httpd_sys_content_t "/web(/.*)?"
+restorecon /web
+restorecon /web/*     //= restorecon -R /web
+```
+
+#####managing logical valumes
+######LVMs
+using pvscan
+```
+yum install -y lvm2
+pvscan  //scan all disks from physical volumes
+vgscan //  scan all disks for volume groups and rebuild caches
+lvscan //scan all disks from logical volumes
+```
+
+create phy volume
+```
+pvcreate /dev/sbd11
+```
+
+create volume group
+```
+vgcreate vg1 /dev/sdb10 /dev/sdb11
+```
+get more info
+```
+vgs
+```
+
+create logical volume
+```
+lvcreate -n <name e.x lv1> -L <size> <gpname e.x. vg1>
+```
+scan
+```
+lvscan
+```
+
+######resize logical volume
+extend vg1, add another volume
+```
+vgextend vg1 /dev/sdb12
+```
+extend logical volume
+```
+lvextend -L +50m /dev/vg1/lv1
+```
+
+######lvm snapshots
+```
+lvcreate -L 30m -s -n backup /dev/vg1/lv1
+```
+ro = readonly
+```
+mount /dev/vg1/backup /mnt -o nouuid,ro
+```
+restore:
+```
+tar -cf /root/backup.tar /mnt
+umount /mnt
+lvremove /dev/vgl/backup
+```
+######migrate pv to new storage
+```
+lsblk
+pvcreate /dev/sdc5
+vgextend vgl /dev/sdc5
+pvmove (-b background) /dev/sdb10 /dev/sdc5
+vgreduce vg1 /dev/sdb10   //remove /dev/sdb10 from vg1
+```
+
