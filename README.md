@@ -299,3 +299,93 @@ pvmove (-b background) /dev/sdb10 /dev/sdc5
 vgreduce vg1 /dev/sdb10   //remove /dev/sdb10 from vg1
 ```
 
+#####config iscsi block storage server
+```
+yum install targetd targetcli
+systemctl enable targetd
+yum install firewalld
+firewall-cmd --add-service=iscsi-target --permanent
+firewall-cmd --reload
+firewall-cmd --list-services
+```
+######create lvm on share
+```
+vgs
+lvcreate -L 100m -n web_lv vg1
+lvscan
+```
+######configure iscsi
+```
+targetcli
+>ls
+> backstores/block create web_store /dev/vg1/web_lv
+```
+
+create in iscsi
+```
+iscsi/ create iqn.xxx.com.server1:web
+cd iscsi/iqn.xxx.com.server1:web/tpg1/
+luns/ create /backstores/block/web_store
+acls/ iqn.xxx.con.server2:web   //set client
+exit
+netstat -ltn
+```
+
+######configure iscsi initiator
+start another machine
+```
+yum list available |grep iscsi
+yum install iscsi-initialitor-utils
+vim /etc/iscsi/initiatorname.iscsi
+```
+edit
+```
+InitiatorName=iqn.xxx.com.server2:web
+```
+
+```
+iscsiadm --mode discovery --type sendtargets --portal server1.example.com --discover //put ip address
+```
+connect
+```
+iscsiadm --mode node --targetname iqn.xxx.server1:web --portal server1.wxample.com --login
+```
+#####HA Clusters
+######pacemaker
+create two servers, do these on both servers
+```
+yum install pacemaker pcs resource-agents
+```
+```
+echo 'hacluster:password' |chpasswd
+```
+```
+firewall-cmd --permanent --add-service=high-availbility
+firewall-cmd --reload
+```
+######creating cluster
+do on both machine
+```
+systemctl enable pcsd
+systemctl start pcsd
+```
+on machine 1:
+```
+pcs cluster auth server1.ex.com server2.ex.com --u hacluster -p password
+pcs cluster setup --name peanut server1.ex.com server2.ex.com
+pcs cluster start -all
+```
+do on both
+```
+systemctl enable corosync pacemaker
+pcs status
+```
+######understand stonith quorum
+shoot the other node in the head
+on machine 1
+```
+pcs property set stonith-enabled=false
+pcs property set no-quorum-policy=ignore
+pcs status
+less /etc/corosync/corosync.conf
+```
