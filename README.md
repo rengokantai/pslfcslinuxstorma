@@ -630,3 +630,40 @@ edit
 luks -fstype=xfs :/dev/mapper/luks-data
 pdf -ro,soft,intr server2.ex.com:/share
 ```
+
+#####group quota
+```
+df -hT
+rpm -fq $(which quota)
+vi /etc/fstab
+```
+edit
+```
+UUID="" /data/mydata ext4 noatime,noexec,usrquota 0 2
+```
+```
+quotacheck -mau  //init quota database
+```
+```
+quotaon /dev/sdb6
+```
+######set user quota
+```
+repquota -uv /dev/sdb6
+```
+```
+setquota -u bob 20000  //soft limit=softli20mb  25000  //hard limit=25mb 0 0  (group quota) /dev/sdb6
+```
+```
+edquota bob
+```
+apply other account's quota
+```
+edquota -u newuser -p bob
+```
+######xfs quotas
+```
+xfs_quota -xc 'limit -u bsoft=30m bhard=35m bob' /data/data2
+xfs_quota -c 'quota -h bob'  //see report
+```
+
