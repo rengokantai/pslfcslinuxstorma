@@ -570,3 +570,63 @@ mkdir /luks-data
 cryptsetup luksOpen /dev/vg1/name luks_data
 mount -a
 ```
+#####Auto mounter
+######using default autofs option
+```
+yum list installed  /available | grep autofs
+ls /etc/auto*
+vim /etc/autofs.conf
+systemctl start autofs
+ls /misc
+cd cd
+ls
+```
+######auto mounting enc partition
+```
+umount /luks-data
+```
+and edit /etc/fstab
+```
+cryptsetup luksClose luks-data
+vi /etc/auto.misc
+```
+edit
+```
+luks -fstype=xfs :/dev/mapper/luks-data
+```
+```
+systemctl restart autofs
+cd /misc/luks
+```
+######config nfs on server2
+machine2
+```
+firewall-cmd --add-service=nfs --permanent
+systemctl enable/start rpcbind nfs-server
+mkdir /share
+find /usr/share/doc -name '*.pdf' -exec cp {} /share \;
+vi /etc/exports
+```
+
+edit
+```
+/share *(ro)
+```
+```
+exportfs  -r
+exportfs -s
+```
+######auto mount remote mounts
+machine1
+```
+mount -t nfs server2.ex.com:/share /mnt
+```
+change config
+```
+vi /etc/auto.misc
+```
+edit
+```
+luks -fstype=xfs :/dev/mapper/luks-data
+pdf -ro,soft,intr server2.ex.com:/share
+```
