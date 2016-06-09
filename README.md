@@ -1,51 +1,68 @@
-#### pslinuxstorma
-#####partition disks
-create partitions  
-MBR-2TB GUID-8ZB / logical partitions, paimary 4, max 128 partitions
-```
-fdisk, gdisk parted
-```
-
+#### pslfcslinuxstor
+#####partitioning
 ######fdisk
+basic
 ```
-fdisk -l /dev/xvda
+lsblk
+fdisk -l /dev/xvdf
 ```
-delete partition
+fdisk
 ```
-dd id=/dev/zaro of=/dev/xvda count=1 bs=1024 //Or omit count parameter
+fdisk /dev/xvdf
+n->p->enter->enter->+20M
 ```
-
-press w to save and exit
+change partition type: t HExcode82=>swap partition, L=list all type w=write d=delete
+```
+dd if=/dev/zero of=/dev/xvdf1 count=1 bs=512
+```
+######gdisk
+```
+gdisk /dev/xvdf
+```
+?=help, then create 2 partition:
+```
+n->enter->enter->+20M->8300
+n->enter->enter->+20M->8200
+w->Y
+```
+wipe out GPT header
+```
+dd if=/dev/zero of=/dev/xvdf count=2 bs=16K
+```
 ######parted
+print info
+```
+parted /dev/xvdf print
+```
+begin
 ```
 parted
-select /dev/xvdab
-mklabel labelname
-```
-partition. from 1mb to 200mb(size=199mb)
-```
-mkpart primary 1 200
-```
-use remaining space
-```
-mkpart extended 201 -1
+select /dev/xvda
+mklabel msdos
+mklabel gpt(destroy table)
+p(print)
+mkpart primary 1 200 (mega)
+mkpart extended 201 300  (or 201 -1)
 mkpart logical 202 300
-p
 quit
 ```
-######scripting
+destroy:
 ```
-#! /bin/bash
-DISK="/dev/xvda"
-parted -s $DISK -- mklabel name mkpart extended 1m -1m
-#create a swap partition
-parted -s $DISK mkpart logical swapname 2m 100m
-#create logic and LVM
-parted -s $DISK mkpart logical 101m 200m
-parted -s $DISK set 10 lvm on
-parted -s $DISK mkpart logical 901m 1000m
-parted -s $DISK print
+dd if=/dev/zero of=/dev/xvdf1 count=1 bs=512
 ```
+using parted with script like:
+```
+#!/bin/bash
+disk="dev/xvdf"
+parted -s $disk -- mklabel msdos mkpart extended 1m -1m
+parted -s $disk mkpart logical linux-swap 2m 100m
+parted -s $disk mkpart logical 101m 200m 
+...
+parted -s $disk set 10 lvm on
+parted -s $disk set 13 raid on
+parted -s $disk print
+```
+
 ######summary
 83 linux-82swap-8e lvm-fd raid  
 GPT label:
@@ -54,25 +71,33 @@ GPT label:
 #####creating linux file system
 ######ext4
 ```
+fdisk -l /dev/xvda
+```
+
+```
 mkfs.  tab   //show all file system
 ```
 
 ```
-mkfs -t /dev/xvda
-mkfs -t -L data /dev/xvda //assign label
+mkfs.ext4 -t /dev/xvdf1
+mkfs -t ext4 /dev/xvdf1
+```
+assign label
+```
+mkfs.ext4 -t -L ke /dev/xvdf1 //assign label
 ```
 tune: -c :count -i interval
 ```
-tune2fs -L newlabel -c 0 -i 0 /dev/xvda
+tune2fs -L newlabel -c 0 -i 0 /dev/xvdf1
 ```
 show info
 ```
-dumpe2fs /dev/xvda
+dumpe2fs /dev/xvdf1
 ```
 
 ######xfs
 ```
-mkfs.xfx -b size=1k -l (log)  size=10m /dev/xvda
+mkfs.xfs -b size=1k -l (log)  size=10m /dev/xvdf1
 ```
 see all com:
 ```
@@ -80,7 +105,7 @@ xfs_ tab
 ```
 check info
 ```
-xfs_db -x /dev/xvda
+xfs_db -x /dev/xvdf7
 uuid //get
 label//get
 ```
@@ -91,17 +116,15 @@ label labelname
 ```
 mount ext4
 ```
-mount /dev/xvda /mnt
+mount /dev/xvdf1 /mnt
 ls /mnt
 umount /mnt
-mount | grep xvda
+mkdir -p /data/test
+mount /dev/xvdf1 /data/test
+mount | grep test
+mount -o remount,noexec /dev/xvdf1 /data/test
+umount /data/test
 ```
-
-```
-mount -o remount,noexec /dev/xvda /data
-```
-
-
 load all mount
 ```
 cat /proc/mounts
@@ -116,32 +139,43 @@ vim /etc/fstab
 ```
 edit
 ```
-UUID=" " /data ext4 noexec 0 2     //2 filecheck   noexec/defaults
+UUID=" " /data ext4 noexec 0 2     //2 filecheck   noexec/defaults   nobackup, filesystemcheck
 ```
 
 then reload and mount
 ```
 mount -a
 ```
+######Using mount command and XFS file system
+```
+vim /etc/fstab
+```
+```
+UUID=" " /data ext4 defaults 0 0
+```
+xfs_info
+```
+xfs_info /dev/xvdf2
+```
 #####managing SWAP
 
 ######
 ```
-mkswap /dev/xvda
-swapon -s
-swapon /dev/sdb5 (low priority)
+mkswap /dev/xvdf4
+swapon -s  //summary
+swapon /dev/xvdf4 (low priority)
 ```
 
-turn off
+turn off (remove swap space)
 ```
-swapoff /dev/sdb5
+swapoff /dev/xvdf4
 ```
 
 check by using```free -m```
 
-###config priority
+######config priority
 ```
-swapoff -a //turn off all
+swapoff -a //turn off all swap space
 ```
 
 in vim console,type
@@ -152,16 +186,31 @@ edit fstab
 ```
 UUID="" swap swap sw,pri=5 0 0
 ```
+turn on all
+```
+swapon -a
+```
 ######raid
+raid levels:  
+linear: partitions/disk not the same size, volume is expanded across all disks in array,spare disk not supported
+raid0: similar to above but disks or partitions are of same size  
+raid1: mirror data between devices of similar size
 ```
 cat /proc/mdstat
 ```
 using mdadm  (multi device adminis)
 ```
 yum install mdadm
-mdadm --create --verbose /dev/md0 --level=mirror --raid-device=2 /dev/db12 /dev/db13
+```
+create 2 raid partitions using parted,
+```
+mdadm --create --verbose /dev/md0 --level=mirror --raid-device=2 /dev/xvdf5 /dev/xvdf6
+```
+```
+mkfs.xfs /dev/md0
 mdadm --detail --scan
 mdadm --stop /dev/md0
+mdadm --assamble --scan
 ```
 
 #####extending permission with ACL
