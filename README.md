@@ -310,12 +310,14 @@ lvscan //scan all disks from logical volumes
 
 create phy volume
 ```
-pvcreate /dev/sbd11
+pvcreate /dev/xvdf10
+pvcreate /dev/xvdf11
+pvcreate /dev/xvdf12
 ```
 
 create volume group
 ```
-vgcreate vg1 /dev/sdb10 /dev/sdb11
+vgcreate vg1 /dev/xvdf10 /dev/xvdf11
 ```
 get more info
 ```
@@ -325,6 +327,8 @@ vgs
 create logical volume
 ```
 lvcreate -n <name e.x lv1> -L <size> <gpname e.x. vg1>
+lvcreate -n lv1 -L 184m vg1
+mkfs.xfs /dev/vg1/lv1
 ```
 scan
 ```
@@ -336,9 +340,34 @@ extend vg1, add another volume
 ```
 vgextend vg1 /dev/sdb12
 ```
+in home folder,
+```
+mkdir /lvm
+```
+then, in fstab
+```
+/dev/vg1/lv1 /lvm xfs defaults 0 0
+```
+test
+```
+mount -a
+mount
+```
+copy test
+```
+find /usr/share/doc -name '*.pdf' -exec cp {} /lvm \;
+ls /lvm
+```
+######resizing logical volume
+extend volume group, add another physical volume
+```
+vgextend vg1 /dev/xvdf12
+```
 extend logical volume
 ```
 lvextend -L +50m /dev/vg1/lv1
+xfs_growfs /lvm
+df -h /lvm
 ```
 
 ######lvm snapshots
@@ -353,7 +382,7 @@ restore:
 ```
 tar -cf /root/backup.tar /mnt
 umount /mnt
-lvremove /dev/vgl/backup
+lvremove /dev/vg1/backup
 ```
 ######migrate pv to new storage
 ```
