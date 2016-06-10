@@ -60,12 +60,17 @@ parted -s $disk mkpart logical 101m 200m #6
 parted -s $disk mkpart logical 201m 300m 
 parted -s $disk mkpart logical 301m 400m 
 parted -s $disk mkpart logical 401m 500m #9
-parted -s $disk mkpart logical 401m 500m 
-parted -s $disk mkpart logical 401m 500m 
-parted -s $disk mkpart logical 401m 500m 
-parted -s $disk mkpart logical 401m 500m 
+parted -s $disk mkpart logical 501m 600m 
+parted -s $disk mkpart logical 601m 700m 
+parted -s $disk mkpart logical 701m 800m #12
+
 parted -s $disk set 10 lvm on
+parted -s $disk set 11 lvm on
+parted -s $disk set 12 lvm on
+parted -s $disk mkpart logical 801m 900m 
+parted -s $disk mkpart logical 901m 1000m 
 parted -s $disk set 13 raid on
+parted -s $disk set 14 raid on
 parted -s $disk print
 ```
 
