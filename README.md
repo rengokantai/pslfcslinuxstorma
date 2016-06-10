@@ -53,11 +53,17 @@ dd if=/dev/zero of=/dev/xvdf1 count=1 bs=512
 using parted with script like:
 ```
 #!/bin/bash
-disk="dev/xvdf"
+disk="/dev/xvdf"
 parted -s $disk -- mklabel msdos mkpart extended 1m -1m
-parted -s $disk mkpart logical linux-swap 2m 100m
-parted -s $disk mkpart logical 101m 200m 
-...
+parted -s $disk mkpart logical linux-swap 2m 100m #5
+parted -s $disk mkpart logical 101m 200m #6
+parted -s $disk mkpart logical 201m 300m 
+parted -s $disk mkpart logical 301m 400m 
+parted -s $disk mkpart logical 401m 500m #9
+parted -s $disk mkpart logical 401m 500m 
+parted -s $disk mkpart logical 401m 500m 
+parted -s $disk mkpart logical 401m 500m 
+parted -s $disk mkpart logical 401m 500m 
 parted -s $disk set 10 lvm on
 parted -s $disk set 13 raid on
 parted -s $disk print
@@ -214,12 +220,15 @@ mdadm --assamble --scan
 ```
 
 #####extending permission with ACL
+######ACL support within the kernel
+support xfs md4
 ```
 grep ACL /boot/config tab
+grep ACL /boot/config-$(uname -r)
 ```
-y means from system, m means module
+y means from system, m means module  
 
-#listing acls
+######listing acls
 ```
 ls -A do not list . .. 
 ```
@@ -232,18 +241,20 @@ getfacl filename
 ```
 
 ######set default acls
+acl will override `chmod`
 ```
-setfacl -m d:o:--- test-acl/        //others cannot do anything  (u,g,o)
+setfacl -m d:o:--- test-acl/        //d=default:others cannot do anything  (u,g,o)
 ```
 set to peculiar user
 ```
 setfacl -dm u:bob:rw test-acl/      //user bob can rw
 ```
-#remove acls
+######remove acls
+remove all acl entry
 ```
 setfacl -b filaname
 ```
-remove entry
+remove single acl entry
 ```
 setfacl -x u:bob filaname
 ```
@@ -265,7 +276,7 @@ ls -Z /etc/shadow
 ```
 check recent
 ```
-ausearch -m AVC -ts recent
+ausearch -m AVC -ts recent   //-ts = timestamp
 ```
 restore /etc/shadow
 ```
