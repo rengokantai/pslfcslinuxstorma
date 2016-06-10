@@ -385,15 +385,29 @@ umount /mnt
 lvremove /dev/vg1/backup
 ```
 ######migrate pv to new storage
+connect another hard drive(sdc), then
+```
+fdisk /dev/sdc->n->e->enter enter
+n->l->enter->+300M->t->5->8e->w
+```
 ```
 lsblk
 pvcreate /dev/sdc5
 vgextend vgl /dev/sdc5
-pvmove (-b background) /dev/sdb10 /dev/sdc5
-vgreduce vg1 /dev/sdb10   //remove /dev/sdb10 from vg1
+pvmove (-b background) /dev/xvdf10 /dev/sdc5
+```
+remove:
+```
+vgdisplay /dev/xvdf10
+vgreduce vg1 /dev/xvdf10   //remove /dev/xvdf10 from vg1
+pvremove /dev/xvdf10
+umount /lvm
+mount -a
 ```
 
 #####config iscsi block storage server
+######Install iSCSI Target and Configure Firewall
+server1
 ```
 yum install targetd targetcli
 systemctl enable targetd
@@ -404,45 +418,51 @@ firewall-cmd --list-services
 ```
 ######create lvm on share
 ```
+lvreduce -L -100m /dev/vg1/lv1
 vgs
 lvcreate -L 100m -n web_lv vg1
 lvscan
 ```
-######configure iscsi
+######configure iscsi target
 ```
 targetcli
 >ls
 > backstores/block create web_store /dev/vg1/web_lv
+
 ```
 
 create in iscsi
 ```
-iscsi/ create iqn.xxx.com.server1:web
-cd iscsi/iqn.xxx.com.server1:web/tpg1/
+iscsi/ create iqn.2016-06.com.ke.server1:web
+cd iscsi/iqn.2016-06.com.ke.server1:web/tpg1/
 luns/ create /backstores/block/web_store
-acls/ iqn.xxx.con.server2:web   //set client
+acls/ create iqn.2016-06.com.ke.server2:web   //set client
 exit
-netstat -ltn
+netstat -ltn  //port 3260
 ```
 
 ######configure iscsi initiator
-start another machine
+start another machine server2
 ```
 yum list available |grep iscsi
-yum install iscsi-initialitor-utils
+yum install iscsi-initiator-utils
 vim /etc/iscsi/initiatorname.iscsi
 ```
 edit
 ```
-InitiatorName=iqn.xxx.com.server2:web
+InitiatorName=iqn.2016-06.com.ke.server2:web
 ```
 
 ```
-iscsiadm --mode discovery --type sendtargets --portal server1.example.com --discover //put ip address
+iscsiadm --mode discovery --type sendtargets --portal (server1ip) --discover //put ip address
 ```
 connect
 ```
-iscsiadm --mode node --targetname iqn.xxx.server1:web --portal server1.wxample.com --login
+iscsiadm --mode node --targetname iqn.2016-06.com.ke.server1:web --portal (server1ip) --login
+```
+test in server2:
+```
+lsblk
 ```
 #####HA Clusters
 ######pacemaker
