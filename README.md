@@ -82,7 +82,7 @@ GPT label:
 #####creating linux file system
 ######ext4
 ```
-fdisk -l /dev/xvda
+fdisk -l /dev/xvdf
 ```
 
 ```
@@ -90,25 +90,26 @@ mkfs.  tab   //show all file system
 ```
 
 ```
-mkfs.ext4 -t /dev/xvdf1
-mkfs -t ext4 /dev/xvdf1
+mkfs.ext4 -t /dev/xvdf6
+mkfs -t ext4 /dev/xvdf6
 ```
 assign label
 ```
-mkfs.ext4 -t -L ke /dev/xvdf1 //assign label
+mkfs.ext4 -t -L data /dev/xvdf6 //assign label
 ```
-tune: -c :count -i interval
+tune2fs
 ```
-tune2fs -L newlabel -c 0 -i 0 /dev/xvdf1
+tune2fs -L newlabel -c 0 -i 0 /dev/xvdf6   //-c maxcountcheck  -i interval
 ```
 show info
 ```
-dumpe2fs /dev/xvdf1
+dumpe2fs /dev/xvdf6
 ```
 
 ######xfs
+-l log
 ```
-mkfs.xfs -b size=1k -l (log)  size=10m /dev/xvdf1
+mkfs.xfs -b size=1k -l size=10m /dev/xvdf7
 ```
 see all com:
 ```
@@ -125,15 +126,15 @@ set label:
 ```
 label labelname
 ```
-mount ext4
+######mount ext4
 ```
-mount /dev/xvdf1 /mnt
+mount /dev/xvdf6 /mnt    //can not get anything?
 ls /mnt
 umount /mnt
-mkdir -p /data/test
-mount /dev/xvdf1 /data/test
+mkdir -p /data/{test,test2}
+mount /dev/xvdf6 /data/test
 mount | grep test
-mount -o remount,noexec /dev/xvdf1 /data/test
+mount -o remount,noexec /dev/xvdf6 /data/test
 umount /data/test
 ```
 load all mount
@@ -150,7 +151,8 @@ vim /etc/fstab
 ```
 edit
 ```
-UUID=" " /data ext4 noexec 0 2     //2 filecheck   noexec/defaults   nobackup, filesystemcheck
+:r!blkid /dev/xvdf6
+UUID=" " /data/test ext4 noexec 0 2     //2 filecheck   noexec/defaults   nobackup, filesystemcheck
 ```
 
 then reload and mount
@@ -162,19 +164,25 @@ mount -a
 vim /etc/fstab
 ```
 ```
-UUID=" " /data ext4 defaults 0 0
+:r!blkid /dev/xvdf7
+UUID=" " /data/test2 xfs defaults 0 0
 ```
 xfs_info
 ```
-xfs_info /dev/xvdf2
+xfs_info /dev/xvdf7
 ```
-#####managing SWAP
-
-######
+######mount options
+from last lession (xfs,ext4), check /etc/fstab. modify
 ```
-mkswap /dev/xvdf4
+UUID=" " /data/test ext4 noexec,noatime 0 2
+UUID=" " /data/test2 xfs noexec,noatime,usrquota,gqnoenforce 0 0
+```
+#####Managing Swap and RAID Devices
+######Creating SWAP Space
+```
+mkswap /dev/xvdf5
 swapon -s  //summary
-swapon /dev/xvdf4 (low priority)
+swapon /dev/xvdf5 (low priority)
 ```
 
 turn off (remove swap space)
@@ -195,11 +203,14 @@ in vim console,type
 ```
 edit fstab
 ```
+/dev/mapper/centos-swap swap   swap,sw,pri=1 0 0
 UUID="" swap swap sw,pri=5 0 0
 ```
 turn on all
 ```
+chmod 0600 /root/swap
 swapon -a
+swapon -s
 ```
 ######raid
 raid levels:  
@@ -215,13 +226,14 @@ yum install mdadm
 ```
 create 2 raid partitions using parted,
 ```
-mdadm --create --verbose /dev/md0 --level=mirror --raid-device=2 /dev/xvdf5 /dev/xvdf6
+mdadm --create --verbose /dev/md0 --level=mirror --raid-device=2 /dev/xvdf13 /dev/xvdf14
 ```
 ```
+ls -l /dev/md0
 mkfs.xfs /dev/md0
 mdadm --detail --scan
 mdadm --stop /dev/md0
-mdadm --assamble --scan
+mdadm --assemble --scan
 ```
 
 #####extending permission with ACL
@@ -767,38 +779,81 @@ pdf -ro,soft,intr server2.ex.com:/share
 ```
 
 #####group quota
+######Enable Quotas in EXT4
 ```
 df -hT
 rpm -fq $(which quota)
 vi /etc/fstab
 ```
-edit
+edit,enable corresponding quota (user quota=usrquota, group quota=grpquota)
 ```
 UUID="" /data/mydata ext4 noatime,noexec,usrquota 0 2
 ```
+remount:
 ```
-quotacheck -mau  //init quota database
+umount /data/test
+mount -a
+ls /data/test
 ```
+quotacheck  (init quota database)
 ```
-quotaon /dev/sdb6
+quotacheck -mau
 ```
-######set user quota
+quotaon
 ```
-repquota -uv /dev/sdb6
+quotaon /dev/xvdf6
 ```
+######Set and Report on EXT Quotas
 ```
-setquota -u bob 20000  //soft limit=softli20mb  25000  //hard limit=25mb 0 0  (group quota) /dev/sdb6
+repquota -uv /dev/xvdf6
 ```
+set a quota
 ```
-edquota bob
+setquota -u user 20000  //soft limit=softli20mb  25000  //hard limit=25mb 0 0  (group quota) /dev/xvdf6
+setquota -u user 20000 25000 0 0  /dev/xvdf6
+```
+edit a quota
+```
+edquota user
 ```
 apply other account's quota
 ```
-edquota -u newuser -p bob
+edquota -u newuser -p user
 ```
+other test
+```
+ls -ld /data/test
+chmod 777 /data/test
+```
+under user bash, test exceed
+```
+dd -f=/dev/zero of=/data/test/blob count=1 bs=20M
+```
++ means already exceeded
 ######xfs quotas
 ```
-xfs_quota -xc 'limit -u bsoft=30m bhard=35m bob' /data/data2
-xfs_quota -c 'quota -h bob'  //see report
+xfs_quota
+> quota user
+>
+```
+```
+xfs_quota -c 'quota user'
+```
+or
+```
+xfs_quota -x
+```
+
+then
+```
+report -h /data/test2
+```
+```
+umount /data/test2
+mount -a
+xfs_quota -xc 'limit -u bsoft=30m bhard=35m user' /data/test2
+chmod 777 /data/test2
+xfs_quota -c 'quota -h user'  //see report
+xfs_quota -xc 'report -h' /data/test2
 ```
 
