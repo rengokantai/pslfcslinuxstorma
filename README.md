@@ -700,7 +700,10 @@ mount
 #####Auto mounter
 ######using default autofs option
 ```
-yum list installed  /available | grep autofs
+yum list installed
+yum list installed | grep autofs
+yum list available | grep autofs
+yum intall autofs -y
 ls /etc/auto*
 vim /etc/autofs.conf
 systemctl start autofs
@@ -714,8 +717,11 @@ umount /luks-data
 ```
 and edit /etc/fstab
 ```
+/dev/mapper/luks-data /luks-data xfs defaults 0 0   (delete this line)
+```
+```
 cryptsetup luksClose luks-data
-vi /etc/auto.misc
+vim /etc/auto.misc
 ```
 edit
 ```
@@ -728,19 +734,21 @@ cd /misc/luks
 ######config nfs on server2
 machine2
 ```
-firewall-cmd --add-service=nfs --permanent
-systemctl enable/start rpcbind nfs-server
+yum list nfs*
+firewall-cmd --add-service=nfs --permanent && firewall-cmd --reload
+systemctl start rpcbind nfs-server && systemctl enable rpcbind nfs-server
 mkdir /share
 find /usr/share/doc -name '*.pdf' -exec cp {} /share \;
-vi /etc/exports
+vim /etc/exports
 ```
 
 edit
 ```
 /share *(ro)
 ```
+then
 ```
-exportfs  -r
+exportfs -r
 exportfs -s
 ```
 ######auto mount remote mounts
