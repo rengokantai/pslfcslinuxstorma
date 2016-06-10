@@ -471,23 +471,23 @@ create two servers, do these on both servers
 yum install pacemaker pcs resource-agents
 ```
 ```
-echo 'hacluster:password' |chpasswd
+echo 'hacluster:pass' |chpasswd
 ```
 ```
-firewall-cmd --permanent --add-service=high-availbility
+firewall-cmd --permanent --add-service=high-availability
 firewall-cmd --reload
 ```
 ######creating cluster
 do on both machine
 ```
-systemctl enable pcsd
-systemctl start pcsd
+systemctl enable pcsd && systemctl start pcsd
 ```
 on machine 1:
 ```
-pcs cluster auth server1.ex.com server2.ex.com --u hacluster -p password
-pcs cluster setup --name peanut server1.ex.com server2.ex.com
-pcs cluster start -all
+pcs cluster auth 172.31.117.145 172.31.16.122 -u hacluster -p pass
+pcs cluster setup --name peanut 172.31.117.145 172.31.16.122
+pcs cluster start --all
+pcs status
 ```
 do on both
 ```
@@ -507,13 +507,15 @@ less /etc/corosync/corosync.conf
 machine1
 ```
 pcs config
-pcs resource create cluster_ip ocf:heartbeat:IPaddr2 ip=192.168.56.1 cidr_netmask=24 op monitor interval=20s
-pcs statuse
+pcs resource create ip ocf:heartbeat:IPaddr2 ip=172.31.127.100 cidr_netmask=24 op monitor interval=20s //delete:pcs resource delete ip
+pcs status
 ip a s
+ping 172.31.127.100
 ```
 machine2
 ```
-pcs cluster standby server1.ex.com
+pcs cluster standby 172.31.117.145
+pcs cluster unstandby 172.31.117.145
 ```
 
 ######install apache
@@ -547,7 +549,7 @@ machine1
 ```
 pcs resource create web-server ocf:heartbeat:apache configfile=/etc/httpd/conf/httpd.conf statusurl="http://127.0.0.1/server-status" op monitor interval=20s
 pcs constraint colocation add web-server cluster_ip INFINITY6
-w3m 192.168.56.1
+w3m 172.31.127.100
 ```
 machine2
 ```
@@ -555,24 +557,26 @@ pcs cluster standby server1.ex.com  //traffic will go server2
 pcs cluster unstandby server1.ex.com    //back to server1
 ```
 #####glusterfs
+(I created another 2 servers)
 do on both machine:
 ```
-parted /dev/sdd -- mklabel name mkpart primary 1m -1m
-mkfs.xfs /dev/sdd1
+parted /dev/xvdf -- mklabel msdos mkpart primary 1m -1m
+mkfs.xfs /dev/xvdf1
 mkdir /gfs
 vi /etc/fstab
 ```
-edit
+edit  (5dw W d$)
 ```
 UUID= .... /gfs xfs defaults 0 0 
 ```
 ######install glusterfs and firewall
+both machine:
 ```
-yum install epel-release
+yum install epel-release -y
 cd /etc/yum.repos.d/
 yum install wget
-wget http://download.gluster.org/pub/gluster/glustergs/latest/rhel
-scp gluter.repo x@servers:/tmp/
+wget -P /etc/yum.repos.d http://download.gluster.org/pub/gluster/glusterfs/LATEST/RHEL/glusterfs-epel.repo
+scp glusterfs-epel.repo user@172.31.101.252:/tmp/
 ls /usr/lib/firewalld/services
 ```
 enable machine1
@@ -585,17 +589,16 @@ yum install glusterfs-server
 ```
 enable on both machine
 ```
-firewall-cmd --permanent --add-service=glusterfs (--reload)
-systemctl start glusterd.service
+yum install -y firewalld && systemctl start firewalld && firewall-cmd --permanent --add-service=glusterfs && firewall-cmd --reload && systemctl start glusterd.service
 ```
-#####implementing dist volume
+#####Implementing Distributed Volumes
 both machine
 ```
 mkdir /gfs/vol
 ```
 machine1
 ```
-gluster peer probe server2.exp.com
+gluster peer probe 172.31.101.252 ( server 2 ip)
 ```
 machine2
 ```
@@ -603,11 +606,15 @@ gluster peer status
 ```
 machine1
 ```
-gluster volume create volume_dist transport tcp server1.ex.com:/gfs/vol server2.ex.com:/gfs/vol 
+gluster volume create volume_dist transport tcp 172.31.114.21:/gfs/vol 172.31.101.252:/gfs/vol 
 gluster volume start volume_dist
 gluster volume info
-mount -t glssterfs server1.ex.com:/volume_dist /mnt
-touch /mnt/{1..100}  //each server will get 50 files
+mount -t glusterfs 172.31.114.21:/volume_dist /mnt
+touch /mnt/file{1..100}  //each server will get 50 files
+```
+test in server1 and server2 respectively:
+```
+ls /gfs/vol
 ```
 
 ######create replicated volume
@@ -621,12 +628,12 @@ mkdir /gfs/rep
 ```
 1
 ```
-gluster volume create volume_replicated replica 2 server1.ex.com:/gfs/rep server2.ex.com:/gfs/rep
+gluster volume create volume_replicated replica 2 172.31.114.21:/gfs/rep 172.31.101.252:/gfs/rep
 gluster volume start volume_replicated
-mount -t glssterfs server1.ex.com:/volume_replicated /mnt
+mount -t glusterfs 172.31.114.21:/volume_replicated /mnt
 touch /mnt/file1
 ```
-1,2
+test in server1 and server2 respectively:
 ```
 ls /gfs/rep
 ```
@@ -634,15 +641,16 @@ ls /gfs/rep
 ######shredding disk
 ```
 vgs
-lvcreate -L 100m -n name vg1 
+lvcreate -L 80m -n name vg1 
 shred -v --iterations=1 /dev/vg1/name
 ```
 
 ######encrypting (LUKS support is by way of the dm_crypt kernel module)
 ```
-grep -i DM_CRYPT /boot-config tab
+grep -i ACL /boot/config-$(uname -r)
+grep -i DM_CRYPT /boot/config-$(uname -r)   //m=maybe
 lsmod | grep dm_crypt
-modprobe dm_crypt
+modprobe dm_crypt   //enable this module
 yum install cryptsetup
 rpm -qf $(which cryptsetup)
 cryptsetup -y luksFormat /dev/vg1/name
@@ -656,14 +664,17 @@ echo $? 0=t 1=f
 ```
 cryptsetup luksOpen /dev/vg1/name name_vol
 ls /dev/mapper
+\ls /dev/mapper
 mkfs.xfs /dev/mapper/name_vol
 ```
-######mounting at boot
+######Mounting at Boot
 ```
 cryptsetup luksClose name_vol
 cryptsetup luksOpen /dev/vg1/name name_vol
+\ls /dev/mapper, copy uuid from /dev/mapper/vg1-name
 \ls   //not alias
 ```
+then
 ```
 vi /etc/crypttab
 ```
@@ -671,6 +682,7 @@ edit
 ```
 luks-data UUID="" 
 ```
+then
 ```
 vi /etc/fstab
 ```
@@ -683,6 +695,7 @@ mkdir /luks-data
 (ctrl r to search previous commands)
 cryptsetup luksOpen /dev/vg1/name luks_data
 mount -a
+mount
 ```
 #####Auto mounter
 ######using default autofs option
